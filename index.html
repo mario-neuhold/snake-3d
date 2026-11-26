@@ -211,6 +211,7 @@
 
   // ---------------------------------------------------------------- constants
   const N = 24;                 // cells per axis
+  const TILE = 2;               // checker tile size in cells
   const BOARD_SCALE = N / 12;   // camera distance scales with the board
   const HALF = (N - 1) / 2;     // centre offset
   const LO = -HALF - 0.5;       // arena bounds (-6 .. 6)
@@ -397,7 +398,7 @@
     if (eating) {
       score++;
       level = 1 + Math.floor(score / 5);
-      stepMs = Math.max(70, 150 - score * 4);
+      stepMs = Math.max(85, 150 - score * 2);
       burst(food, FOOD_COLOR, 14, 3.2);
       beep(620 + Math.min(score, 24) * 16, 0.09, 'triangle', 0.06);
       spawnFood();
@@ -678,18 +679,65 @@
     }
   }
 
+  // Same soft blob, projected onto the back wall so height (and the ceiling)
+  // is readable at a glance.
+  function addBackShadow(x, y, z, radius, color, alpha) {
+    const depthFromWall = Math.max(0, z - LO);
+    const fade = 1 - (depthFromWall / (HI - LO)) * 0.72;
+    const a = Math.max(0.05, alpha * fade);
+    const r = radius + depthFromWall * 0.035;
+
+    for (const [scale, strength] of [[1.45, 0.35], [1, 1]]) {
+      const pts = [];
+      for (let i = 0; i < 16; i++) {
+        const ang = i / 16 * Math.PI * 2;
+        const p = project({
+          x: x + Math.cos(ang) * r * scale,
+          y: y + Math.sin(ang) * r * scale,
+          z: LO + 0.03
+        });
+        if (!p) return;
+        pts.push(p);
+      }
+      let depth = 0;
+      for (const p of pts) depth += p.z;
+      depth = depth / pts.length - 0.25; // bias in front of the wall tiles
+      drawList.push({
+        t: 'poly', pts, depth,
+        fill: 'rgba(' + color[0] + ',' + color[1] + ',' + color[2] + ',' + (a * strength).toFixed(3) + ')',
+        stroke: null
+      });
+    }
+  }
+
   function addArena() {
     // checkerboard floor, tessellated so depth sorting stays correct
-    for (let ix = 0; ix < N; ix++) {
-      for (let iz = 0; iz < N; iz++) {
-        const x0 = LO + ix, x1 = x0 + 1, z0 = LO + iz, z1 = z0 + 1;
+    for (let ix = 0; ix < N; ix += TILE) {
+      for (let iz = 0; iz < N; iz += TILE) {
+        const x0 = LO + ix, x1 = LO + Math.min(ix + TILE, N);
+        const z0 = LO + iz, z1 = LO + Math.min(iz + TILE, N);
         const v = [
           { x: x0, y: LO, z: z1 }, { x: x1, y: LO, z: z1 },
           { x: x1, y: LO, z: z0 }, { x: x0, y: LO, z: z0 }
         ];
         addFaces(v, [[0, 1, 2, 3]],
-          (ix + iz) % 2 ? [8, 18, 30] : [11, 24, 39],
+          ((ix / TILE + iz / TILE) % 2) ? [8, 18, 30] : [11, 24, 39],
           { stroke: 'rgba(45,205,235,0.14)' });
+      }
+    }
+
+    // matching checkerboard back wall (facing the camera)
+    for (let ix = 0; ix < N; ix += TILE) {
+      for (let iy = 0; iy < N; iy += TILE) {
+        const x0 = LO + ix, x1 = LO + Math.min(ix + TILE, N);
+        const y0 = LO + iy, y1 = LO + Math.min(iy + TILE, N);
+        const v = [
+          { x: x0, y: y0, z: LO }, { x: x1, y: y0, z: LO },
+          { x: x1, y: y1, z: LO }, { x: x0, y: y1, z: LO }
+        ];
+        addFaces(v, [[0, 1, 2, 3]],
+          ((ix / TILE + iy / TILE) % 2) ? [7, 15, 26] : [10, 21, 35],
+          { stroke: 'rgba(45,205,235,0.11)' });
       }
     }
 
@@ -763,6 +811,7 @@
       const h = i === 0 ? 0.47 : 0.43 - 0.05 * k;
 
       addFloorShadow(x, y, z, i === 0 ? 0.5 : 0.38, [0, 0, 0], i === 0 ? 0.5 : 0.32);
+      addBackShadow(x, y, z, i === 0 ? 0.5 : 0.38, [0, 0, 0], i === 0 ? 0.5 : 0.32);
       addBox(x, y, z, h, color, { stroke: 'rgba(0,18,14,0.4)' });
 
       if (i === 0) {
