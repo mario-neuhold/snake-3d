@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>SNAKE³ — 3D Arcade</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  :root {
+    --bg: #04060e;
+    --ink: #dff7ff;
+    --dim: #6d8d9c;
+    --cyan: #3ce6ff;
+    --acid: #b6ff4a;
+    --pink: #ff4d7d;
+  }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: var(--bg); }
+  body {
+    color: var(--ink);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+  #game { position: fixed; inset: 0; display: block; touch-action: none; }
+
+  .hud {
+    position: fixed; inset: 0; pointer-events: none;
+    padding: clamp(12px, 2.2vw, 26px);
+    display: flex; flex-direction: column; justify-content: space-between;
+  }
+  .hud-top, .hud-bottom { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; }
+  .hud-bottom { align-items: flex-end; }
+
+  .brand { line-height: 1; text-shadow: 0 0 18px rgba(60,230,255,.35); }
+  .brand b { display: block; font-size: clamp(20px, 3.2vw, 34px); letter-spacing: 3px; font-weight: 800; }
+  .brand b span { color: var(--acid); }
+  .brand small { display: block; margin-top: 7px; color: var(--dim); font-size: 10px; letter-spacing: 4px; }
+
+  .stats {
+    display: flex; gap: 2px; padding: 2px;
+    background: rgba(6, 16, 27, .72);
+    border: 1px solid rgba(60, 230, 255, .22);
+    border-radius: 8px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 10px 40px rgba(0,0,0,.35);
+  }
+  .stat { min-width: 74px; padding: 9px 13px 8px; text-align: right; }
+  .stat + .stat { border-left: 1px solid rgba(60,230,255,.12); }
+  .stat i { display: block; font-style: normal; font-size: 9px; letter-spacing: 2px; color: var(--dim); }
+  .stat strong { display: block; margin-top: 3px; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat.hot strong { color: var(--acid); text-shadow: 0 0 14px rgba(182,255,74,.45); }
+
+  .legend { color: var(--dim); font-size: 10px; letter-spacing: 1.4px; line-height: 2.1; }
+  .legend kbd, .prompt kbd {
+    display: inline-block; min-width: 20px; padding: 1px 5px; margin: 0 2px;
+    border: 1px solid rgba(220,247,255,.28); border-bottom-width: 2px; border-radius: 4px;
+    color: var(--ink); font: inherit; font-size: 10px; text-align: center;
+    background: rgba(255,255,255,.045);
+  }
+  .tools { display: flex; gap: 8px; pointer-events: auto; }
+  .tool {
+    background: rgba(6,16,27,.72); color: var(--dim);
+    border: 1px solid rgba(60,230,255,.22); border-radius: 6px;
+    padding: 8px 11px; font: inherit; font-size: 10px; letter-spacing: 1.5px;
+    cursor: pointer; backdrop-filter: blur(8px); transition: .15s;
+  }
+  .tool:hover { color: var(--cyan); border-color: rgba(60,230,255,.6); }
+  .tool.off { color: var(--pink); }
+
+  .overlay {
+    position: fixed; inset: 0; display: grid; place-items: center;
+    background: radial-gradient(ellipse at center, rgba(4,6,14,.45), rgba(4,6,14,.86));
+    backdrop-filter: blur(3px); z-index: 5; cursor: pointer;
+    transition: opacity .22s;
+  }
+  .overlay.hidden { opacity: 0; pointer-events: none; }
+  .card {
+    width: min(560px, calc(100vw - 32px));
+    padding: clamp(22px, 4vw, 40px);
+    border: 1px solid rgba(60,230,255,.28);
+    border-radius: 14px;
+    background: linear-gradient(155deg, rgba(10,26,40,.92), rgba(5,10,20,.94));
+    box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 30px 90px rgba(0,0,0,.6), inset 0 1px rgba(255,255,255,.05);
+    text-align: center;
+  }
+  .eyebrow { color: var(--cyan); font-size: 10px; letter-spacing: 5px; text-transform: uppercase; }
+  .card h1 {
+    margin: 12px 0 4px; font-size: clamp(46px, 10vw, 82px); line-height: .95;
+    letter-spacing: 6px; font-weight: 800; text-shadow: 0 0 34px rgba(60,230,255,.28);
+  }
+  .card h1 span { color: var(--acid); text-shadow: 0 0 30px rgba(182,255,74,.45); }
+  .tagline { color: var(--dim); font-size: 12px; letter-spacing: 1.6px; margin-bottom: 22px; }
+  .keys {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+    margin: 0 auto 22px; max-width: 460px; text-align: left;
+  }
+  .keyrow {
+    display: flex; align-items: center; gap: 7px; padding: 8px 10px;
+    border: 1px solid rgba(60,230,255,.13); border-radius: 6px;
+    background: rgba(255,255,255,.025); color: var(--dim); font-size: 10px; letter-spacing: 1px;
+  }
+  .keyrow kbd {
+    flex: 0 0 auto; min-width: 22px; padding: 3px 4px; text-align: center;
+    border: 1px solid rgba(220,247,255,.3); border-bottom-width: 2px; border-radius: 4px;
+    color: var(--ink); font: inherit; background: rgba(255,255,255,.05);
+  }
+  .result { margin: 0 auto 20px; max-width: 460px; }
+  .result .grade { color: var(--pink); font-size: 13px; letter-spacing: 4px; margin-bottom: 12px; }
+  .result .nums { display: flex; justify-content: center; gap: 34px; }
+  .result .nums div i { display: block; font-style: normal; color: var(--dim); font-size: 9px; letter-spacing: 2px; }
+  .result .nums div strong { display: block; margin-top: 4px; font-size: 30px; font-variant-numeric: tabular-nums; }
+  .hidden { display: none !important; }
+  .prompt { margin-top: 4px; color: var(--ink); font-size: 11px; letter-spacing: 3px; animation: pulse 1.25s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: .35; } }
+
+  .pad {
+    position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%);
+    display: none; grid-template-columns: repeat(3, 52px); grid-template-rows: repeat(2, 44px);
+    gap: 6px; z-index: 4;
+  }
+  .pad button {
+    border: 1px solid rgba(60,230,255,.3); border-radius: 8px;
+    background: rgba(6,20,32,.8); color: var(--ink); font: inherit; font-size: 15px;
+    backdrop-filter: blur(6px); touch-action: manipulation;
+  }
+  .pad button:active { background: rgba(60,230,255,.25); }
+  .pad .up { grid-column: 2; grid-row: 1; }
+  .pad .down { grid-column: 2; grid-row: 2; }
+  .pad .left { grid-column: 1; grid-row: 2; }
+  .pad .right { grid-column: 3; grid-row: 2; }
+  .pad .fwd { grid-column: 1; grid-row: 1; font-size: 10px; }
+  .pad .back { grid-column: 3; grid-row: 1; font-size: 10px; }
+
+  @media (max-width: 760px), (pointer: coarse) {
+    .legend { display: none; }
+    .pad { display: grid; }
+    .hud-bottom { margin-bottom: 112px; }
+    .stat { min-width: 58px; padding: 7px 9px 6px; }
+    .stat strong { font-size: 15px; }
+    .keys { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div class="hud">
+  <div class="hud-top">
+    <div class="brand"><b>SNAKE<span>³</span></b><small>24³ CUBIC ARCADE</small></div>
+    <div class="stats">
+      <div class="stat hot"><i>SCORE</i><strong id="score">0</strong></div>
+      <div class="stat"><i>BEST</i><strong id="best">0</strong></div>
+      <div class="stat"><i>LENGTH</i><strong id="length">3</strong></div>
+      <div class="stat"><i>SPEED</i><strong id="speed">6.7</strong></div>
+    </div>
+  </div>
+  <div class="hud-bottom">
+    <div class="legend">
+      <kbd>←</kbd><kbd>→</kbd><kbd>↑</kbd><kbd>↓</kbd> move on plane &nbsp;·&nbsp;
+      <kbd>Q</kbd>/<kbd>space</kbd> rise &nbsp;·&nbsp; <kbd>E</kbd>/<kbd>shift</kbd> dive<br />
+      <kbd>P</kbd> pause &nbsp;·&nbsp; <kbd>M</kbd> mute &nbsp;·&nbsp; mouse wheel to zoom
+    </div>
+    <div class="tools">
+      <button class="tool" id="pauseBtn">PAUSE ⏸</button>
+      <button class="tool" id="muteBtn">SOUND ♪</button>
+    </div>
+  </div>
+</div>
+
+<div class="pad" id="pad">
+  <button class="fwd" data-dir="fwd">FWD</button>
+  <button class="up" data-dir="up">▲</button>
+  <button class="back" data-dir="back">BACK</button>
+  <button class="left" data-dir="left">◀</button>
+  <button class="down" data-dir="down">▼</button>
+  <button class="right" data-dir="right">▶</button>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="card">
+    <div class="eyebrow" id="eyebrow">NEON ARCADE // CUBIC EDITION</div>
+    <h1 id="title">SNAKE<span>³</span></h1>
+    <p class="tagline" id="tagline">Eat. Grow. Do not become the wall.</p>
+
+    <div class="keys" id="keys">
+      <div class="keyrow"><kbd>← →</kbd> LEFT / RIGHT</div>
+      <div class="keyrow"><kbd>↑ ↓</kbd> FWD / BACK</div>
+      <div class="keyrow"><kbd>Q E</kbd> UP / DOWN</div>
+      <div class="keyrow"><kbd>W A S D</kbd> PLANE MOVE</div>
+      <div class="keyrow"><kbd>SPACE</kbd> RISE</div>
+      <div class="keyrow"><kbd>SHIFT</kbd> DIVE</div>
+    </div>
+
+    <div class="result hidden" id="result">
+      <div class="grade" id="grade">GAME OVER</div>
+      <div class="nums">
+        <div><i>SCORE</i><strong id="finalScore">0</strong></div>
+        <div><i>BEST</i><strong id="finalBest">0</strong></div>
+        <div><i>LENGTH</i><strong id="finalLength">0</strong></div>
+      </div>
+    </div>
+
+    <div class="prompt" id="prompt">PRESS <kbd>ENTER</kbd> TO START</div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------------------------------------------------------------- constants
+  const N = 24;                 // cells per axis
+  const BOARD_SCALE = N / 12;   // camera distance scales with the board
+  const HALF = (N - 1) / 2;     // centre offset
+  const LO = -HALF - 0.5;       // arena bounds (-6 .. 6)
+  const HI = HALF + 0.5;
+  const FOV = 55 * Math.PI / 180;
+  const HEAD_COLOR = [182, 255, 74];
+  const TAIL_COLOR = [12, 150, 132];
+  const FOOD_COLOR = [255, 74, 116];
+
+  const DIRS = {
+    left:  { x: -1, y: 0, z: 0 },
+    right: { x:  1, y: 0, z: 0 },
+    fwd:   { x:  0, y: 0, z: -1 },
+    back:  { x:  0, y: 0, z:  1 },
+    up:    { x:  0, y: 1, z:  0 },
+    down:  { x:  0, y: -1, z: 0 }
+  };
+  const KEYMAP = {
+    arrowleft: 'left', a: 'left',
+    arrowright: 'right', d: 'right',
+    arrowup: 'fwd', w: 'fwd',
+    arrowdown: 'back', s: 'back',
+    ' ': 'up', q: 'up',
+    shift: 'down', e: 'down', control: 'down'
+  };
+
+  const BOX_FACES = [
+    [4, 5, 6, 7], [1, 0, 3, 2], [5, 1, 2, 6],
+    [0, 4, 7, 3], [3, 7, 6, 2], [0, 1, 5, 4]
+  ];
+  const OCTA_VERTS = [
+    { x: 1, y: 0, z: 0 }, { x: -1, y: 0, z: 0 },
+    { x: 0, y: 1, z: 0 }, { x: 0, y: -1, z: 0 },
+    { x: 0, y: 0, z: 1 }, { x: 0, y: 0, z: -1 }
+  ];
+  const OCTA_FACES = [
+    [0, 2, 4], [0, 4, 3], [0, 3, 5], [0, 5, 2],
+    [1, 4, 2], [1, 3, 4], [1, 5, 3], [1, 2, 5]
+  ];
+
+  // ---------------------------------------------------------------- dom
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const el = {
+    score: document.getElementById('score'),
+    best: document.getElementById('best'),
+    length: document.getElementById('length'),
+    speed: document.getElementById('speed'),
+    overlay: document.getElementById('overlay'),
+    eyebrow: document.getElementById('eyebrow'),
+    title: document.getElementById('title'),
+    tagline: document.getElementById('tagline'),
+    keys: document.getElementById('keys'),
+    result: document.getElementById('result'),
+    grade: document.getElementById('grade'),
+    finalScore: document.getElementById('finalScore'),
+    finalBest: document.getElementById('finalBest'),
+    finalLength: document.getElementById('finalLength'),
+    prompt: document.getElementById('prompt'),
+    pauseBtn: document.getElementById('pauseBtn'),
+    muteBtn: document.getElementById('muteBtn')
+  };
+
+  // ---------------------------------------------------------------- vector math
+  const sub3 = (a, b) => ({ x: a.x - b.x, y: a.y - b.y, z: a.z - b.z });
+  const dot3 = (a, b) => a.x * b.x + a.y * b.y + a.z * b.z;
+  const cross3 = (a, b) => ({
+    x: a.y * b.z - a.z * b.y,
+    y: a.z * b.x - a.x * b.z,
+    z: a.x * b.y - a.y * b.x
+  });
+  const norm3 = v => {
+    const m = Math.hypot(v.x, v.y, v.z) || 1;
+    return { x: v.x / m, y: v.y / m, z: v.z / m };
+  };
+  const lerpPt = (a, b, t) => ({
+    x: a.x + (b.x - a.x) * t,
+    y: a.y + (b.y - a.y) * t,
+    z: a.z + (b.z - a.z) * t
+  });
+  const shade = (c, k) =>
+    'rgb(' + Math.min(255, c[0] * k | 0) + ',' + Math.min(255, c[1] * k | 0) + ',' + Math.min(255, c[2] * k | 0) + ')';
+  const lerpColor = (a, b, t) => [
+    a[0] + (b[0] - a[0]) * t,
+    a[1] + (b[1] - a[1]) * t,
+    a[2] + (b[2] - a[2]) * t
+  ];
+  const w = g => g - HALF;         // grid coordinate -> world coordinate
+  const LIGHT = norm3({ x: 0.45, y: 1, z: 0.7 });
+
+  // ---------------------------------------------------------------- state
+  let W = 0, H = 0, focal = 0, bgGrad = null, vignette = null;
+  let zoom = 1;
+  let cam = { x: 0, y: 0, z: 0 }, F, R, U;
+  let drawList = [];
+  let shake = 0, shakeX = 0, shakeY = 0;
+  let time = 0, lastFrame = 0;
+
+  let snake = [], prev = [], dir, queue = [], food;
+  let score = 0, best = 0, level = 1, stepMs = 150, acc = 0;
+  let state = 'ready', deathReason = '';
+  let particles = [];
+  let audio = null, muted = false;
+
+  try { best = parseInt(localStorage.getItem('snake3d-best') || '0', 10) || 0; } catch (e) {}
+
+  // ---------------------------------------------------------------- audio
+  function beep(freq, dur, type, vol) {
+    if (muted) return;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return;
+      audio = audio || new AC();
+      if (audio.state === 'suspended') audio.resume();
+      const o = audio.createOscillator();
+      const g = audio.createGain();
+      o.type = type || 'square';
+      o.frequency.value = freq;
+      g.gain.setValueAtTime(vol || 0.05, audio.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + dur);
+      o.connect(g); g.connect(audio.destination);
+      o.start(); o.stop(audio.currentTime + dur);
+    } catch (e) {}
+  }
+
+  // ---------------------------------------------------------------- game logic
+  function reset() {
+    snake = [
+      { x: 14, y: 12, z: 12 },
+      { x: 13, y: 12, z: 12 },
+      { x: 12, y: 12, z: 12 }
+    ];
+    prev = snake.map(s => ({ ...s }));
+    dir = { ...DIRS.right };
+    queue = [];
+    score = 0; level = 1; stepMs = 150; acc = 0;
+    particles = [];
+    shake = 0;
+    spawnFood();
+    updateHud();
+  }
+
+  function spawnFood() {
+    const taken = new Set(snake.map(s => s.x + ',' + s.y + ',' + s.z));
+    const free = [];
+    for (let x = 0; x < N; x++)
+      for (let y = 0; y < N; y++)
+        for (let z = 0; z < N; z++)
+          if (!taken.has(x + ',' + y + ',' + z)) free.push({ x, y, z });
+    if (!free.length) { finish('FULL CLEAR'); return; }
+    food = free[(Math.random() * free.length) | 0];
+  }
+
+  function queueDir(nd) {
+    if (!nd || queue.length >= 2) return;
+    const last = queue.length ? queue[queue.length - 1] : dir;
+    if (nd.x === last.x && nd.y === last.y && nd.z === last.z) return;
+    if (nd.x === -last.x && nd.y === -last.y && nd.z === -last.z) return;
+    queue.push({ ...nd });
+  }
+
+  function step() {
+    prev = snake.map(s => ({ ...s }));
+    if (queue.length) dir = queue.shift();
+
+    const head = snake[0];
+    const nx = head.x + dir.x, ny = head.y + dir.y, nz = head.z + dir.z;
+
+    if (nx < 0 || ny < 0 || nz < 0 || nx >= N || ny >= N || nz >= N) {
+      finish('WALL IMPACT');
+      return;
+    }
+
+    const eating = nx === food.x && ny === food.y && nz === food.z;
+    const body = eating ? snake : snake.slice(0, -1);
+    for (const s of body) {
+      if (s.x === nx && s.y === ny && s.z === nz) {
+        finish('SELF COLLISION');
+        return;
+      }
+    }
+
+    snake.unshift({ x: nx, y: ny, z: nz });
+    if (eating) {
+      score++;
+      level = 1 + Math.floor(score / 5);
+      stepMs = Math.max(70, 150 - score * 4);
+      burst(food, FOOD_COLOR, 14, 3.2);
+      beep(620 + Math.min(score, 24) * 16, 0.09, 'triangle', 0.06);
+      spawnFood();
+    } else {
+      snake.pop();
+    }
+    updateHud();
+  }
+
+  function finish(reason) {
+    if (state !== 'playing') return;
+    state = 'over';
+    deathReason = reason;
+    shake = 0.75;
+    burst(snake[0], [255, 80, 105], 30, 5);
+    beep(180, 0.42, 'sawtooth', 0.075);
+    setTimeout(() => beep(95, 0.6, 'sawtooth', 0.06), 130);
+    if (score > best) {
+      best = score;
+      try { localStorage.setItem('snake3d-best', String(best)); } catch (e) {}
+    }
+    updateHud();
+    showOverlay('over');
+  }
+
+  function burst(cell, color, count, speed) {
+    for (let i = 0; i < count; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const b = (Math.random() - 0.5) * Math.PI;
+      const m = speed * (0.35 + Math.random());
+      particles.push({
+        x: w(cell.x), y: w(cell.y), z: w(cell.z),
+        vx: Math.cos(a) * Math.cos(b) * m,
+        vy: Math.sin(b) * m + 2.2,
+        vz: Math.sin(a) * Math.cos(b) * m,
+        life: 0.45 + Math.random() * 0.7,
+        max: 1.15,
+        color,
+        size: 0.05 + Math.random() * 0.09
+      });
+    }
+  }
+
+  function updateParticles(dt) {
+    for (let i = particles.length - 1; i >= 0; i--) {
+      const p = particles[i];
+      p.life -= dt;
+      if (p.life <= 0) { particles.splice(i, 1); continue; }
+      p.vy -= 8 * dt;
+      p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
+    }
+  }
+
+  function updateHud() {
+    el.score.textContent = score;
+    el.best.textContent = best;
+    el.length.textContent = snake.length || 0;
+    el.speed.textContent = (1000 / stepMs).toFixed(1);
+  }
+
+  // ---------------------------------------------------------------- overlay
+  function showOverlay(mode) {
+    el.overlay.classList.remove('hidden');
+    const keysVisible = mode === 'ready';
+    el.keys.classList.toggle('hidden', !keysVisible);
+    el.result.classList.toggle('hidden', mode !== 'over');
+
+    if (mode === 'ready') {
+      el.eyebrow.textContent = 'NEON ARCADE // CUBIC EDITION';
+      el.title.innerHTML = 'SNAKE<span>³</span>';
+      el.tagline.textContent = 'Eat. Grow. Do not become the wall.';
+      el.prompt.innerHTML = 'PRESS <kbd>ENTER</kbd> TO START';
+    } else if (mode === 'paused') {
+      el.eyebrow.textContent = 'SYSTEM HALT';
+      el.title.innerHTML = 'PAUS<span>ED</span>';
+      el.tagline.textContent = 'The cube waits patiently.';
+      el.prompt.innerHTML = 'PRESS <kbd>P</kbd> TO RESUME';
+    } else {
+      el.eyebrow.textContent = 'RUN TERMINATED';
+      el.title.innerHTML = 'GAME <span>OVER</span>';
+      el.tagline.textContent = deathReason + ' // length ' + snake.length;
+      el.grade.textContent = score >= best && score > 0 ? 'NEW PERSONAL BEST' : 'BETTER LUCK, SNAKE';
+      el.finalScore.textContent = score;
+      el.finalBest.textContent = best;
+      el.finalLength.textContent = snake.length;
+      el.prompt.innerHTML = 'PRESS <kbd>ENTER</kbd> TO RETRY';
+    }
+  }
+  function hideOverlay() { el.overlay.classList.add('hidden'); }
+
+  function start() {
+    reset();
+    state = 'playing';
+    hideOverlay();
+    beep(440, 0.08, 'square', 0.04);
+  }
+  function togglePause() {
+    if (state === 'playing') { state = 'paused'; showOverlay('paused'); }
+    else if (state === 'paused') { state = 'playing'; hideOverlay(); }
+  }
+
+  // ---------------------------------------------------------------- input
+  window.addEventListener('keydown', e => {
+    const k = e.key.toLowerCase();
+    if (['arrowup', 'arrowdown', 'arrowleft', 'arrowright', ' ', 'shift'].includes(k)) e.preventDefault();
+    if (k === 'm') {
+      muted = !muted;
+      el.muteBtn.textContent = muted ? 'MUTED ✕' : 'SOUND ♪';
+      el.muteBtn.classList.toggle('off', muted);
+      return;
+    }
+    if ((k === 'enter' || k === ' ') && (state === 'ready' || state === 'over')) { start(); return; }
+    if (k === 'p' || k === 'escape') { togglePause(); return; }
+    if (state !== 'playing') return;
+    if (KEYMAP[k]) queueDir(DIRS[KEYMAP[k]]);
+  });
+
+  el.overlay.addEventListener('pointerdown', () => {
+    if (state === 'ready' || state === 'over') start();
+    else if (state === 'paused') togglePause();
+  });
+  el.pauseBtn.addEventListener('click', togglePause);
+  el.muteBtn.addEventListener('click', () => {
+    muted = !muted;
+    el.muteBtn.textContent = muted ? 'MUTED ✕' : 'SOUND ♪';
+    el.muteBtn.classList.toggle('off', muted);
+  });
+  document.querySelectorAll('#pad button').forEach(btn => {
+    btn.addEventListener('pointerdown', e => {
+      e.preventDefault();
+      if (state === 'ready' || state === 'over') { start(); return; }
+      if (state === 'paused') { togglePause(); return; }
+      queueDir(DIRS[btn.dataset.dir]);
+    });
+  });
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    zoom = Math.max(0.62, Math.min(1.9, zoom + Math.sign(e.deltaY) * 0.07));
+  }, { passive: false });
+
+  // ---------------------------------------------------------------- renderer
+  function resize() {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = window.innerWidth; H = window.innerHeight;
+    canvas.width = Math.round(W * dpr);
+    canvas.height = Math.round(H * dpr);
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    focal = (H / 2) / Math.tan(FOV / 2);
+
+    bgGrad = ctx.createRadialGradient(W / 2, H * 0.34, 0, W / 2, H * 0.42, Math.max(W, H) * 0.78);
+    bgGrad.addColorStop(0, '#0b1a2b');
+    bgGrad.addColorStop(0.45, '#060e1a');
+    bgGrad.addColorStop(1, '#03050c');
+
+    vignette = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.28, W / 2, H / 2, Math.max(W, H) * 0.78);
+    vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    vignette.addColorStop(1, 'rgba(0,0,0,0.55)');
+  }
+  window.addEventListener('resize', resize);
+
+  function computeBasis() {
+    cam = { x: 0, y: 9.5 * zoom * BOARD_SCALE, z: 16 * zoom * BOARD_SCALE };
+    F = norm3(sub3({ x: 0, y: 0, z: 0 }, cam));
+    R = norm3(cross3(F, { x: 0, y: 1, z: 0 }));
+    U = cross3(R, F);
+  }
+
+  function project(p) {
+    const vx = p.x - cam.x, vy = p.y - cam.y, vz = p.z - cam.z;
+    const depth = vx * F.x + vy * F.y + vz * F.z;
+    if (depth <= 0.35) return null;
+    const cx = vx * R.x + vy * R.y + vz * R.z;
+    const cy = vx * U.x + vy * U.y + vz * U.z;
+    const s = focal / depth;
+    return {
+      x: W / 2 + cx * s + shakeX,
+      y: H / 2 - cy * s + shakeY,
+      z: depth
+    };
+  }
+
+  function addFaces(verts, faces, color, opts) {
+    opts = opts || {};
+    for (const f of faces) {
+      const a = verts[f[0]], b = verts[f[1]], c = verts[f[2]];
+      const n = norm3(cross3(sub3(b, a), sub3(c, a)));
+      const center = { x: 0, y: 0, z: 0 };
+      for (const idx of f) {
+        center.x += verts[idx].x; center.y += verts[idx].y; center.z += verts[idx].z;
+      }
+      center.x /= f.length; center.y /= f.length; center.z /= f.length;
+      if (dot3(n, sub3(cam, center)) <= 0) continue; // backface cull
+
+      const pts = f.map(i => project(verts[i]));
+      if (pts.some(p => !p)) continue;
+      let depth = 0;
+      for (const p of pts) depth += p.z;
+      depth /= pts.length;
+
+      const lit = 0.34 + 0.66 * Math.max(0, dot3(n, LIGHT));
+      drawList.push({
+        t: 'poly', pts, depth,
+        fill: shade(color, lit * (opts.tint || 1)),
+        stroke: opts.stroke || null
+      });
+    }
+  }
+
+  function addBox(x, y, z, h, color, opts) {
+    const v = [
+      { x: x - h, y: y - h, z: z - h }, { x: x + h, y: y - h, z: z - h },
+      { x: x + h, y: y + h, z: z - h }, { x: x - h, y: y + h, z: z - h },
+      { x: x - h, y: y - h, z: z + h }, { x: x + h, y: y - h, z: z + h },
+      { x: x + h, y: y + h, z: z + h }, { x: x - h, y: y + h, z: z + h }
+    ];
+    addFaces(v, BOX_FACES, color, opts);
+  }
+
+  function addLine(a, b, color, width, alpha) {
+    const p1 = project(a), p2 = project(b);
+    if (!p1 || !p2) return;
+    drawList.push({
+      t: 'line', depth: (p1.z + p2.z) / 2, p1, p2,
+      stroke: 'rgba(' + color[0] + ',' + color[1] + ',' + color[2] + ',' + alpha + ')',
+      width
+    });
+  }
+
+  function addGlow(p, radiusWorld, color, alpha) {
+    const q = project(p);
+    if (!q) return;
+    drawList.push({
+      t: 'glow', depth: q.z + 0.02, x: q.x, y: q.y,
+      r: Math.max(4, focal * radiusWorld / q.z), color, alpha
+    });
+  }
+
+  function addSprite(p, sizeWorld, color, alpha) {
+    const q = project(p);
+    if (!q) return;
+    drawList.push({
+      t: 'sprite', depth: q.z, x: q.x, y: q.y,
+      s: Math.max(2, focal * sizeWorld / q.z),
+      fill: 'rgba(' + color[0] + ',' + color[1] + ',' + color[2] + ',' + alpha + ')'
+    });
+  }
+
+  // Soft projected blob on the floor directly beneath a point in the cube.
+  // Higher objects cast a larger, fainter shadow so height stays readable.
+  function addFloorShadow(x, y, z, radius, color, alpha) {
+    const height = Math.max(0, y - LO);
+    const fade = 1 - (height / (HI - LO)) * 0.72;
+    const a = Math.max(0.05, alpha * fade);
+    const r = radius + height * 0.035;
+
+    for (const [scale, strength] of [[1.45, 0.35], [1, 1]]) {
+      const pts = [];
+      for (let i = 0; i < 16; i++) {
+        const ang = i / 16 * Math.PI * 2;
+        const p = project({
+          x: x + Math.cos(ang) * r * scale,
+          y: LO + 0.03,
+          z: z + Math.sin(ang) * r * scale
+        });
+        if (!p) return;
+        pts.push(p);
+      }
+      let depth = 0;
+      for (const p of pts) depth += p.z;
+      depth = depth / pts.length - 0.25; // bias in front of the floor tiles
+      drawList.push({
+        t: 'poly', pts, depth,
+        fill: 'rgba(' + color[0] + ',' + color[1] + ',' + color[2] + ',' + (a * strength).toFixed(3) + ')',
+        stroke: null
+      });
+    }
+  }
+
+  function addArena() {
+    // checkerboard floor, tessellated so depth sorting stays correct
+    for (let ix = 0; ix < N; ix++) {
+      for (let iz = 0; iz < N; iz++) {
+        const x0 = LO + ix, x1 = x0 + 1, z0 = LO + iz, z1 = z0 + 1;
+        const v = [
+          { x: x0, y: LO, z: z1 }, { x: x1, y: LO, z: z1 },
+          { x: x1, y: LO, z: z0 }, { x: x0, y: LO, z: z0 }
+        ];
+        addFaces(v, [[0, 1, 2, 3]],
+          (ix + iz) % 2 ? [8, 18, 30] : [11, 24, 39],
+          { stroke: 'rgba(45,205,235,0.14)' });
+      }
+    }
+
+    // wireframe bounds
+    const corners = [];
+    for (const x of [LO, HI]) for (const y of [LO, HI]) for (const z of [LO, HI]) corners.push({ x, y, z });
+    for (let i = 0; i < 8; i++) {
+      for (let j = i + 1; j < 8; j++) {
+        const diff = (corners[i].x !== corners[j].x ? 1 : 0) +
+                     (corners[i].y !== corners[j].y ? 1 : 0) +
+                     (corners[i].z !== corners[j].z ? 1 : 0);
+        if (diff !== 1) continue;
+        for (let s = 0; s < 8; s++) {
+          addLine(lerpPt(corners[i], corners[j], s / 8),
+                  lerpPt(corners[i], corners[j], (s + 1) / 8),
+                  [60, 230, 255], 1.5, 0.28);
+        }
+      }
+    }
+    for (const c of corners) addGlow(c, 0.5, [60, 230, 255], 0.22);
+  }
+
+  function addFood() {
+    if (!food) return;
+    const gx = w(food.x), gz = w(food.z);
+    const bob = Math.sin(time * 3) * 0.11;
+    const gy = w(food.y) + bob;
+    const rot = time * 1.4;
+    const cs = Math.cos(rot), sn = Math.sin(rot), r = 0.44;
+    const verts = OCTA_VERTS.map(v => {
+      const x = v.x * r, y = v.y * r, z = v.z * r;
+      return { x: gx + x * cs + z * sn, y: gy + y, z: gz - x * sn + z * cs };
+    });
+
+    addGlow({ x: gx, y: gy, z: gz }, 2.1, FOOD_COLOR, 0.55);
+    addFaces(verts, OCTA_FACES, FOOD_COLOR, { stroke: 'rgba(90,0,25,0.55)' });
+
+    const ring = [];
+    for (let i = 0; i < 24; i++) {
+      const a = i / 24 * Math.PI * 2;
+      ring.push({ x: gx + Math.cos(a) * 0.92, y: LO + 0.02, z: gz + Math.sin(a) * 0.92 });
+    }
+    for (let i = 0; i < 24; i++) addLine(ring[i], ring[(i + 1) % 24], FOOD_COLOR, 2, 0.55);
+    addLine({ x: gx, y: LO, z: gz }, { x: gx, y: gy, z: gz }, FOOD_COLOR, 1, 0.2);
+  }
+
+  function addEyes(x, y, z) {
+    const perp = Math.abs(dir.x) > 0 ? { x: 0, y: 0, z: 1 } : { x: 1, y: 0, z: 0 };
+    const vertical = Math.abs(dir.y) > 0;
+    for (const s of [-1, 1]) {
+      addBox(
+        x + dir.x * 0.5 + perp.x * 0.19 * s,
+        y + dir.y * 0.5 + (vertical ? 0 : 0.17),
+        z + dir.z * 0.5 + perp.z * 0.19 * s,
+        0.08, [235, 255, 255]
+      );
+    }
+  }
+
+  function addSnake(t) {
+    const n = snake.length;
+    for (let i = 0; i < n; i++) {
+      const cur = snake[i];
+      const old = prev[i] || prev[prev.length - 1] || cur;
+      const x = w(old.x + (cur.x - old.x) * t);
+      const y = w(old.y + (cur.y - old.y) * t);
+      const z = w(old.z + (cur.z - old.z) * t);
+
+      const k = n === 1 ? 0 : i / (n - 1);
+      const color = lerpColor(HEAD_COLOR, TAIL_COLOR, Math.min(1, k * 0.94));
+      const h = i === 0 ? 0.47 : 0.43 - 0.05 * k;
+
+      addFloorShadow(x, y, z, i === 0 ? 0.5 : 0.38, [0, 0, 0], i === 0 ? 0.5 : 0.32);
+      addBox(x, y, z, h, color, { stroke: 'rgba(0,18,14,0.4)' });
+
+      if (i === 0) {
+        addGlow({ x, y, z }, 2.3, HEAD_COLOR, 0.5);
+        addEyes(x, y, z);
+        // tether + heading arrow on the floor, so position and direction are clear
+        addLine({ x, y, z }, { x, y: LO + 0.04, z }, HEAD_COLOR, 1, 0.22);
+        if (dir.x || dir.z) {
+          addLine(
+            { x: x + dir.x * 0.45, y: LO + 0.05, z: z + dir.z * 0.45 },
+            { x: x + dir.x * 1.05, y: LO + 0.05, z: z + dir.z * 1.05 },
+            HEAD_COLOR, 2, 0.6
+          );
+        }
+      }
+    }
+  }
+
+  function addParticles() {
+    for (const p of particles) {
+      const a = Math.min(1, p.life / 0.6);
+      addSprite(p, p.size, p.color, a);
+    }
+  }
+
+  function drawPrimitive(d) {
+    if (d.t === 'poly') {
+      ctx.beginPath();
+      ctx.moveTo(d.pts[0].x, d.pts[0].y);
+      for (let i = 1; i < d.pts.length; i++) ctx.lineTo(d.pts[i].x, d.pts[i].y);
+      ctx.closePath();
+      ctx.fillStyle = d.fill;
+      ctx.fill();
+      if (d.stroke) { ctx.strokeStyle = d.stroke; ctx.lineWidth = 1; ctx.stroke(); }
+    } else if (d.t === 'line') {
+      ctx.beginPath();
+      ctx.moveTo(d.p1.x, d.p1.y);
+      ctx.lineTo(d.p2.x, d.p2.y);
+      ctx.strokeStyle = d.stroke;
+      ctx.lineWidth = d.width;
+      ctx.stroke();
+    } else if (d.t === 'glow') {
+      const g = ctx.createRadialGradient(d.x, d.y, 0, d.x, d.y, d.r);
+      const c = d.color;
+      g.addColorStop(0, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + d.alpha + ')');
+      g.addColorStop(0.4, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',' + (d.alpha * 0.28) + ')');
+      g.addColorStop(1, 'rgba(' + c[0] + ',' + c[1] + ',' + c[2] + ',0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
+      ctx.fill();
+    } else if (d.t === 'sprite') {
+      ctx.fillStyle = d.fill;
+      ctx.fillRect(d.x - d.s / 2, d.y - d.s / 2, d.s, d.s);
+    }
+  }
+
+  function render() {
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, W, H);
+
+    computeBasis();
+    drawList = [];
+    addArena();
+    addFood();
+    const t = state === 'playing' ? Math.min(1, acc / stepMs) : 1;
+    addSnake(t);
+    addParticles();
+
+    drawList.sort((a, b) => b.depth - a.depth);
+    for (const d of drawList) drawPrimitive(d);
+
+    ctx.fillStyle = vignette;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  function frame(ts) {
+    const dt = Math.min(0.05, lastFrame ? (ts - lastFrame) / 1000 : 0);
+    lastFrame = ts;
+    time += dt;
+
+    if (state === 'playing') {
+      acc += dt * 1000;
+      let guard = 0;
+      while (acc >= stepMs && state === 'playing' && guard++ < 6) {
+        acc -= stepMs;
+        step();
+      }
+    }
+    updateParticles(dt);
+
+    shake *= Math.pow(0.0025, dt);
+    if (shake < 0.002) shake = 0;
+    shakeX = (Math.random() - 0.5) * shake * 26;
+    shakeY = (Math.random() - 0.5) * shake * 26;
+
+    render();
+    requestAnimationFrame(frame);
+  }
+
+  // ---------------------------------------------------------------- boot
+  resize();
+  reset();
+  showOverlay('ready');
+  updateHud();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
