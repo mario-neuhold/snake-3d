@@ -32,4 +32,6 @@ This is a static site:
 3. Leave the build command empty and set the output directory to `.` (the `index.html` sits at the repository root).
 4. Deploy.
 
+The app is connected through the `coolify-dev-2` GitHub App, so pushes to `main` deploy automatically.
+
 No environment variables or packages are required.
