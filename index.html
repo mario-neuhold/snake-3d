@@ -211,7 +211,7 @@
 
   // ---------------------------------------------------------------- constants
   const N = 24;                 // cells per axis
-  const TILE = 2;               // checker tile size in cells
+  const TILE = 1;               // one checker tile per grid cell
   const BOARD_SCALE = N / 12;   // camera distance scales with the board
   const HALF = (N - 1) / 2;     // centre offset
   const LO = -HALF - 0.5;       // arena bounds (-6 .. 6)
@@ -721,8 +721,8 @@
           { x: x1, y: LO, z: z0 }, { x: x0, y: LO, z: z0 }
         ];
         addFaces(v, [[0, 1, 2, 3]],
-          ((ix / TILE + iz / TILE) % 2) ? [8, 18, 30] : [11, 24, 39],
-          { stroke: 'rgba(45,205,235,0.14)', depthBias: 1.4 });
+          ((ix / TILE + iz / TILE) % 2) ? [6, 14, 24] : [10, 22, 36],
+          { depthBias: 1.4 });
       }
     }
 
@@ -736,8 +736,8 @@
           { x: x1, y: y1, z: LO }, { x: x0, y: y1, z: LO }
         ];
         addFaces(v, [[0, 1, 2, 3]],
-          ((ix / TILE + iy / TILE) % 2) ? [7, 15, 26] : [10, 21, 35],
-          { stroke: 'rgba(45,205,235,0.11)', depthBias: 1.4 });
+          ((ix / TILE + iy / TILE) % 2) ? [7, 16, 28] : [11, 24, 39],
+          { depthBias: 1.4 });
       }
     }
 
